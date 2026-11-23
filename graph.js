@@ -2,7 +2,9 @@
 let plasmaChart = null;
 
 const CHART_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
-const Y_AXIS_LABEL = 'PUN (mg/dL)';
+// Drawn horizontally left of the chart, one array entry per line; the chart's left padding is
+// sized to the widest line, so splitting keeps a long label from squeezing the plot.
+const Y_AXIS_LABEL = ['Plasma', 'Creatinine', '(mg/dL)'];
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_NAMES_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 let yAxisLabelFontSize = 13; // px; rescaled by applyChartScale()
@@ -18,7 +20,11 @@ const horizontalYAxisLabelPlugin = {
         ctx.fillStyle = '#666';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillText(Y_AXIS_LABEL, yScale.left - 4, (chartArea.top + chartArea.bottom) / 2);
+        const lineHeight = yAxisLabelFontSize * 1.25;
+        const firstY = (chartArea.top + chartArea.bottom) / 2 - (Y_AXIS_LABEL.length - 1) * lineHeight / 2;
+        Y_AXIS_LABEL.forEach((line, i) => {
+            ctx.fillText(line, yScale.left - 4, firstY + i * lineHeight);
+        });
         ctx.restore();
     }
 };
@@ -237,7 +243,7 @@ function applyChartScale() {
     const ctx = plasmaChart.ctx;
     ctx.save();
     ctx.font = `bold ${yAxisLabelFontSize}px ${CHART_FONT_FAMILY}`;
-    const labelWidth = ctx.measureText(Y_AXIS_LABEL).width;
+    const labelWidth = Math.max(...Y_AXIS_LABEL.map(line => ctx.measureText(line).width));
     ctx.restore();
     o.layout.padding.left = Math.ceil(labelWidth + 0.75 * rem);
 

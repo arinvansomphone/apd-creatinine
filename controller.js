@@ -30,16 +30,18 @@ function calculateVolume() {
     }
 }
 
-// Calculate urea nitrogen generation rate (mg urea-N/min) from nPNA using Bergström's CAPD
-// equation 4A (Kidney Int 1993;44:1048), PNA = 19 + 7.62 × UNA, solved for UNA:
-// PNA (g/day) = nPNA (g/kg/day) × weight (kg)
-// ureaN (g/day) = (PNA - 19) / 7.62
-// ureaN (mg/min) = ureaN (g/day) × 1000 / 1440
-function computeGeneration(pna, weight) {
-    if (!pna || !weight) return '';
-    const pnaGperDay = pna * weight;                          // g protein/day
-    const ureaNGperDay = Math.max(0, (pnaGperDay - 19) / 7.62); // g urea-N/day
-    return ureaNGperDay * 1000 / 1440;                        // mg urea-N/min
+// Convert the entered creatinine generation (g/day) to the simulation's rate (mg/min):
+// mg/min = g/day × 1000 mg/g / 1440 min/day. No formula — the user enters generation directly.
+function computeGeneration(crgenGperDay) {
+    if (!(crgenGperDay >= 0)) return '';
+    return crgenGperDay * 1000 / 1440;
+}
+
+// Body surface area (m²) by the Mosteller formula: √(height cm × weight kg / 3600).
+// Used only to normalize weekly creatinine clearance to 1.73 m².
+function computeBSA(heightCm, weightKg) {
+    if (!(heightCm > 0) || !(weightKg > 0)) return NaN;
+    return Math.sqrt(heightCm * weightKg / 3600);
 }
 
 // Store treatment results - treatment2 is most recent (for graph); treatmentHistory holds up to 4
@@ -73,10 +75,10 @@ function gatherPrescriptionInputs(prescriptionNum) {
     const mtac = parseFloat(mtacElement.value || mtacElement.options[mtacElement.selectedIndex]?.value);
     const volumeInput = document.getElementById('volume');
     const volume = parseFloat(volumeInput.dataset.exact ?? volumeInput.value);
-    const pna = parseFloat(document.getElementById('pna').value);
-    const weight = parseFloat(document.getElementById('weight').value);
-    const gen = computeGeneration(pna, weight);
-    
+    const gen = computeGeneration(parseFloat(document.getElementById('crgen').value)); // mg/min
+    const bsa = computeBSA(parseFloat(document.getElementById('height').value),
+                           parseFloat(document.getElementById('weight').value)); // m², Mosteller
+
     // Get selected days
     const days = [];
     const dayIds = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -150,6 +152,7 @@ function gatherPrescriptionInputs(prescriptionNum) {
         mtac,
         volume,
         gen,
+        bsa,
         days,
         volumeData,
         timeData,
@@ -387,7 +390,7 @@ function updateGraphWithTreatment(treatmentNum, results) {
 }
 
 // Compute the four reported metrics for one treatmentHistory entry.
-// tac and apc are returned in internal units (mg/L plasma water); kurea and ktv are final.
+// tac and apc are returned in internal units (mg/L plasma water); kcre and wcl are final.
 function computeMetrics({ results, inputs }) {
     const { plasmaConcentration, plasmaToDialysate, excretion } = results;
     const totalMinutes = plasmaConcentration.length; // 10080
@@ -400,18 +403,19 @@ function computeMetrics({ results, inputs }) {
     // Total weekly solute removal (mg): dialysate flux + renal excretion, each mg/min × 1 min
     const weeklyRemoval = plasmaToDialysate.reduce((s, v) => s + v, 0)
         + excretion.reduce((s, v) => s + v, 0);
-    // Time-averaged Kurea (mL plasma/min): total weekly removal / (whole-plasma TAC × minutes).
+    // Time-averaged Kcre (mL plasma/min): total weekly removal / (whole-plasma TAC × minutes).
     // Whole-plasma TAC is tac × 0.93; × 1000 converts L → mL.
-    const kurea = tac > 0 ? weeklyRemoval / (tac * 0.93 * totalMinutes) * 1000 : 0;
-    // Weekly Kt/Vurea = time-averaged Kurea × 10080 min / Vd (mL, baseline body water)
-    const ktv = kurea * totalMinutes / (inputs.volume * 1000);
+    const kcre = tac > 0 ? weeklyRemoval / (tac * 0.93 * totalMinutes) * 1000 : 0;
+    // Weekly clearance (L plasma/week/1.73 m²): Kcre (mL/min) × 10080 min / 1000 mL/L gives
+    // L/week; × 1.73 / BSA (Mosteller, m²) normalizes it to a 1.73 m² body surface area.
+    const wcl = kcre * totalMinutes / 1000 * 1.73 / inputs.bsa;
 
-    return { ktv, apc, tac, kurea };
+    return { wcl, apc, tac, kcre };
 }
 
 // Update results table - populates all 4 columns from treatmentHistory
 function updateAllResults() {
-    const metrics = ['apc', 'tac', 'kurea', 'ktv'];
+    const metrics = ['apc', 'tac', 'kcre', 'wcl'];
     
     for (let col = 1; col <= 4; col++) {
         const entry = treatmentHistory[col - 1];
@@ -429,17 +433,18 @@ function updateAllResults() {
 
         if (dot) dot.style.backgroundColor = TREATMENT_COLORS[entry.colorIndex];
 
-        const { ktv, apc, tac, kurea } = computeMetrics(entry);
+        const { wcl, apc, tac, kcre } = computeMetrics(entry);
 
         document.getElementById(`apc-${suffix}`).textContent = (apc / 10 * 0.93).toFixed(1);
         document.getElementById(`tac-${suffix}`).textContent = (tac / 10 * 0.93).toFixed(1);
-        document.getElementById(`kurea-${suffix}`).textContent = kurea.toFixed(2);
-        document.getElementById(`ktv-${suffix}`).textContent = ktv.toFixed(2);
+        document.getElementById(`kcre-${suffix}`).textContent = kcre.toFixed(2);
+        document.getElementById(`wcl-${suffix}`).textContent = wcl.toFixed(1);
     }
 
     if (treatmentHistory.length > 0) {
-        const { ktv, apc, tac, kurea } = computeMetrics(treatmentHistory[treatmentHistory.length - 1]);
-        console.log(`Peak: ${(apc/10*0.93).toFixed(2)} mg/dL, TAC: ${(tac/10*0.93).toFixed(2)} mg/dL, Kurea: ${kurea.toFixed(2)} mL plasma/min, weekly Kt/V: ${ktv.toFixed(2)}`);
+        const last = treatmentHistory[treatmentHistory.length - 1];
+        const { wcl, apc, tac, kcre } = computeMetrics(last);
+        console.log(`Peak: ${(apc/10*0.93).toFixed(2)} mg/dL, TAC: ${(tac/10*0.93).toFixed(2)} mg/dL, Kcre: ${kcre.toFixed(2)} mL plasma/min, BSA: ${last.inputs.bsa.toFixed(3)} m², weekly clearance: ${wcl.toFixed(2)} L/week/1.73 m²`);
     }
 }
 
@@ -460,7 +465,7 @@ function runTreatment(treatmentNum) {
         
         console.log('=== pdCalculator inputs ===');
         console.log(`kru=${inputs.kru} mL/min, mtac=${inputs.mtac} mL/min, volume=${inputs.volume} L`);
-        console.log(`gen=${inputs.gen?.toFixed(4)} mg/min, nPNA=${document.getElementById('pna').value} g/kg/day, weight=${document.getElementById('weight').value} kg`);
+        console.log(`gen=${inputs.gen?.toFixed(4)} mg/min, creatinine generation=${document.getElementById('crgen').value} g/day`);
         console.log(`exchanges: ${inputs.volumeData.length}, days: ${inputs.days.join(',')}`);
         console.log(`volumeData (L): ${inputs.volumeData}, timeData (hr): ${inputs.timeData}, ufData (mL): ${inputs.ufData}`);
 
@@ -504,11 +509,11 @@ function validatePrescription(prescriptionNum) {
     const weight = document.getElementById('weight').value;
     const sex = document.getElementById('sex').value;
     const volume = document.getElementById('volume').value;
-    const pna = document.getElementById('pna').value;
+    const crgen = document.getElementById('crgen').value;
     const kru = document.getElementById('kru').value;
     const mtac = document.getElementById('mtac').value;
     
-    if (!age || !height || !weight || !sex || !volume || !pna || !kru || !mtac) {
+    if (!age || !height || !weight || !sex || !volume || !crgen || !kru || !mtac) {
         return false;
     }
     
@@ -564,7 +569,7 @@ document.getElementById('sex').addEventListener('change', calculateVolume);
 // Add event listeners to update button states when inputs change
 document.addEventListener('DOMContentLoaded', () => {
     // Patient data inputs
-    ['age', 'height', 'weight', 'sex', 'pna', 'kru', 'mtac'].forEach(id => {
+    ['age', 'height', 'weight', 'sex', 'crgen', 'kru', 'mtac'].forEach(id => {
         const element = document.getElementById(id);
         if (element) {
             element.addEventListener('input', updateButtonStates);
@@ -631,7 +636,7 @@ function resetAll() {
     }
 
     // Reset numeric results table
-    ['apc', 'tac', 'kurea', 'ktv'].forEach(metric => {
+    ['apc', 'tac', 'kcre', 'wcl'].forEach(metric => {
         for (let col = 1; col <= 4; col++) {
             const el = document.getElementById(`${metric}-tx${col}`);
             if (el) el.textContent = '-';

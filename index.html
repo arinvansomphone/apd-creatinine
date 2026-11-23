@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PD Weekly Cycle Calculator: APD Urea</title>
+    <title>PD Weekly Cycle Calculator: APD Creatinine</title>
     <link rel="stylesheet" href="site.css">
     <style>
         /* Shared tokens, text scaling, reset and header live in site.css (also used by
@@ -357,11 +357,20 @@
             border-bottom: none;
         }
 
+        /* Row labels wrap to 2–3 lines (the nowrap "Prescription N" headers leave this column
+           only the leftover width), so their leading is tightened to 1.2. The results table sets
+           the bottom row's height, which the top row gives up; looser leading here pushed
+           Patient Data past its box at laptop sizes. */
         .results-table td:first-child {
             text-align: left;
             font-size: 0.9375rem;
             font-weight: 500;
+            line-height: 1.2;
             padding-left: 0;
+        }
+
+        .results-table .unit {
+            white-space: nowrap;
         }
 
         /* Dot sits above the "Prescription N" label so the header stays one line wide */
@@ -391,11 +400,11 @@
 <body>
     <header>
         <div class="title-block">
-            <h1><a href="index.html" class="site-title">PD Weekly Cycle Calculator: APD Urea</a></h1>
+            <h1><a href="index.html" class="site-title">PD Weekly Cycle Calculator: APD Creatinine</a></h1>
             <p class="description">Program Description at <a href="#">webaddress</a></p>
         </div>
         <div class="header-meta">
-            <span class="updated">Last updated 10/9/2026</span>
+            <span class="updated">Last updated 11/22/2026</span>
             <a href="about.html" class="nav-link">About</a>
         </div>
     </header>
@@ -420,14 +429,13 @@
                             </div>
                             
                             <div class="input-group">
-                                <label for="volume">Volume of Distribution of Urea (L)</label>
-                                <input type="number" id="volume" name="volume" min="0" step="0.1" readonly>
+                                <label for="kru">Krcre (mL/min)</label>
+                                <input type="number" id="kru" name="kru" min="0" step="any">
                             </div>
-                            
+
                             <div class="input-group">
-                                <label for="pna">nPNA (g/kg/day)</label>
-                                <input type="number" id="pna" name="pna" min="0" step="any" value="0.9">
-                                <em class="hint">also called nPCR; default value of 0.9 can be altered</em>
+                                <label for="crgen">Creatinine Generation (g/day)</label>
+                                <input type="number" id="crgen" name="crgen" min="0" step="any">
                             </div>
                         </div>
                         
@@ -446,19 +454,22 @@
                                 </select>
                             </div>
                             
+                            <!-- Vd sits in this column so each column has one two-line item
+                                 (this label; "Creatinine Generation" on the left). With both in the left
+                                 column, Patient Data overflowed its box at most laptop sizes. -->
                             <div class="input-group">
-                                <label for="kru">Kru (mL/min)</label>
-                                <input type="number" id="kru" name="kru" min="0" step="any">
+                                <label for="volume">Volume of Distribution of Creatinine (L)</label>
+                                <input type="number" id="volume" name="volume" min="0" step="0.1" readonly>
                             </div>
-                            
+
                             <div class="input-group">
                                 <label for="mtac">Transport Category</label>
                                 <select id="mtac" name="mtac">
                                     <option value="">Select...</option>
-                                    <option value="27.7">High, MTAC (mL/min)=27.7</option>
-                                    <option value="23.1" selected>High Average, MTAC (mL/min)=23.1</option>
-                                    <option value="18.4">Low Average, MTAC (mL/min)=18.4</option>
-                                    <option value="15.9">Low, MTAC (mL/min)=15.9</option>
+                                    <option value="19.2">High, MTAC (mL/min)=19.2</option>
+                                    <option value="11.9" selected>High Average, MTAC (mL/min)=11.9</option>
+                                    <option value="8.6">Low Average, MTAC (mL/min)=8.6</option>
+                                    <option value="5.2">Low, MTAC (mL/min)=5.2</option>
                                 </select>
                                 <em class="hint">default is High Average</em>
                             </div>
@@ -590,18 +601,18 @@
                                 <td id="tac-tx4">-</td>
                             </tr>
                             <tr>
-                                <td>Time Averaged Kurea (mL plasma/min)</td>
-                                <td id="kurea-tx1">-</td>
-                                <td id="kurea-tx2">-</td>
-                                <td id="kurea-tx3">-</td>
-                                <td id="kurea-tx4">-</td>
+                                <td>Time Averaged Kcre (mL plasma/min)</td>
+                                <td id="kcre-tx1">-</td>
+                                <td id="kcre-tx2">-</td>
+                                <td id="kcre-tx3">-</td>
+                                <td id="kcre-tx4">-</td>
                             </tr>
                             <tr>
-                                <td>Weekly Kt/Vurea</td>
-                                <td id="ktv-tx1">-</td>
-                                <td id="ktv-tx2">-</td>
-                                <td id="ktv-tx3">-</td>
-                                <td id="ktv-tx4">-</td>
+                                <td>Weekly Clearance<br><span class="unit">(L/week/1.73 m&sup2;)</span></td>
+                                <td id="wcl-tx1">-</td>
+                                <td id="wcl-tx2">-</td>
+                                <td id="wcl-tx3">-</td>
+                                <td id="wcl-tx4">-</td>
                             </tr>
                         </tbody>
                     </table>
